@@ -1,4 +1,5 @@
 #include "Circuit.hpp"
+#include "components/VoltageSource.hpp"
 #include <iostream>
 #include <iomanip>
 #include <stdexcept>
@@ -20,34 +21,51 @@ void Circuit::addComponent(std::unique_ptr<Component> comp) {
 }
 
 bool Circuit::solve() {
-    // Liczba węzłów bez GND – to rozmiar macierzy MNA
-    int n = static_cast<int>(nodes_.size()) - 1;
+    int n = static_cast<int>(nodes_.size()) - 1; // węzły bez GND
     if (n <= 0) {
         std::cerr << "[Circuit] Brak węzłów do symulacji.\n";
         return false;
     }
 
-    // Inicjalizacja macierzy G i wektora I zerami
-    Matrix G(n, Vector(n, 0.0));
-    Vector I(n, 0.0);
-
-    // Każdy komponent dodaje swój wkład
+    // --- Zliczamy VoltageSource i przydzielamy im indeksy ---
+    // Każde źródło napięcia dostaje dodatkowy wiersz/kolumnę (prąd gałęzi).
+    int vsCount = 0;
     for (const auto& comp : components_) {
-        comp->stamp(G, I);
+        if (auto* vs = dynamic_cast<VoltageSource*>(comp.get())) {
+            vs->assignBranchIndex(n + vsCount);
+            ++vsCount;
+        }
     }
 
-    // Rozwiązujemy G * V = I  →  V to napięcia węzłów
-    // Kopia wektora I – gaussianElimination nadpisuje go wynikiem
-    Vector V = I;
-    if (!gaussianElimination(G, V)) {
+    // Rozmiar rozszerzonej macierzy: węzły + prądy źródeł napięcia
+    int size = n + vsCount;
+
+    Matrix G(size, Vector(size, 0.0));
+    Vector rhs(size, 0.0);
+
+    // Każdy komponent wbija swój wkład
+    for (const auto& comp : components_) {
+        comp->stamp(G, rhs);
+    }
+
+    // Rozwiązujemy rozszerzone G * x = rhs
+    // x = [ V(n1), V(n2), ..., J(vs1), J(vs2), ... ]
+    Vector x = rhs;
+    if (!gaussianElimination(G, x)) {
         std::cerr << "[Circuit] Macierz osobliwa – sprawdź obwód.\n";
         return false;
     }
 
-    // Przepisujemy wyniki z powrotem do węzłów
-    // nodes_[0] = GND (0V), nodes_[1..n] = węzły obliczone
+    // Przepisujemy napięcia do węzłów
     for (int i = 0; i < n; ++i) {
-        nodes_[i + 1]->voltage = V[i];
+        nodes_[i + 1]->voltage = x[i];
+    }
+
+    // Przepisujemy prądy gałęzi do VoltageSource
+    for (const auto& comp : components_) {
+        if (auto* vs = dynamic_cast<VoltageSource*>(comp.get())) {
+            vs->setBranchCurrent(x[vs->branchIndex()]);
+        }
     }
 
     return true;
