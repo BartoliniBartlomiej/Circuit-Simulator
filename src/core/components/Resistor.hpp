@@ -2,14 +2,14 @@
 #include "../Component.hpp"
 #include <stdexcept>
 
-// Rezystor między nodeA i nodeB.
+// Resistor between nodeA and nodeB.
 //
-// stamp (konduktancja g = 1/R):
-//   G[a][a] += g
-//   G[b][b] += g
-//   G[a][b] -= g
-//   G[b][a] -= g
-// (wiersze/kolumny GND są pomijane)
+// stamp (conductance g = 1/R):
+// G[a][a] += g
+// G[b][b] += g
+// G[a][b] -= g
+// G[b][a] -= g
+// (rows/columns corresponding to GND are omitted).
 
 class Resistor : public Component {
 public:
@@ -23,7 +23,6 @@ public:
     void stamp(Matrix& G, Vector& /*I*/) const override {
         double g = 1.0 / resistance_;
 
-        // Pomocnicze lambda – indeks w macierzy (0-based, bez GND)
         auto idx = [](const Node* n) { return n->id - 1; };
 
         bool aIsGnd = nodeA->isGround();
@@ -39,10 +38,8 @@ public:
         } else if (!bIsGnd) {
             G[idx(nodeB)][idx(nodeB)] += g;
         }
-        // oba GND → rezystor zwarty do masy, brak wpływu na macierz
     }
 
-    // Prąd dostępny po Circuit::solve()
     double getCurrent() const override {
         return (nodeA->voltage - nodeB->voltage) / resistance_;
     }

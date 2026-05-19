@@ -11,26 +11,24 @@ public:
     Circuit();
     ~Circuit() = default;
 
-    // --- Budowanie obwodu ---
+    // --- Building the circuit ---
 
-    // Tworzy nowy węzeł i zwraca wskaźnik do niego.
-    // Węzeł GND (id=0) tworzony jest automatycznie w konstruktorze.
+    // Creates a new node and returns a pointer to it.
+    // The GND node (id=0) is automatically created in the constructor.
     Node* addNode(const std::string& name = "");
 
-    // Dodaje gotowy komponent (Circuit przejmuje własność przez unique_ptr)
     void addComponent(std::unique_ptr<Component> comp);
 
-    // Wygodny dostęp do węzła GND
     Node* gnd() const { return nodes_[0].get(); }
 
-    // --- Symulacja ---
+    // --- Simulation ---
 
-    // Buduje macierz MNA i rozwiązuje układ równań.
-    // Po wywołaniu: node->voltage jest wypełnione dla każdego węzła.
-    // Zwraca false jeśli macierz jest osobliwa (zły obwód).
+    // Builds the MNA matrix and solves the system of equations.
+    // After calling: node->voltage is filled for each node.
+    // Returns false if the matrix is singular (bad circuit).
     bool solve();
 
-    // --- Diagnostyka ---
+    // --- Diagnostics ---
     void printNodeVoltages() const;
     void printComponents() const;
 
@@ -38,7 +36,7 @@ private:
     std::vector<std::unique_ptr<Node>>      nodes_;
     std::vector<std::unique_ptr<Component>> components_;
 
-    // Eliminacja Gaussa – rozwiązuje Ax = b, wynik w b
-    // Zwraca false jeśli macierz osobliwa
+    // Gaussian elimination – solves Ax = b, result in b
+    // Returns false if the matrix is singular
     bool gaussianElimination(Matrix& A, Vector& b) const;
 };

@@ -6,7 +6,7 @@
 #include <cmath>
 
 Circuit::Circuit() {
-    // Węzeł GND zawsze ma id=0 i napięcie 0V
+    // Node GND always has id=0 and 0V
     nodes_.push_back(std::make_unique<Node>(0, "GND"));
 }
 
@@ -21,14 +21,12 @@ void Circuit::addComponent(std::unique_ptr<Component> comp) {
 }
 
 bool Circuit::solve() {
-    int n = static_cast<int>(nodes_.size()) - 1; // węzły bez GND
+    int n = static_cast<int>(nodes_.size()) - 1; // No-GND nodes
     if (n <= 0) {
-        std::cerr << "[Circuit] Brak węzłów do symulacji.\n";
+        std::cerr << "[Circuit] No nodes to simulate.\n";
         return false;
     }
 
-    // --- Zliczamy VoltageSource i przydzielamy im indeksy ---
-    // Każde źródło napięcia dostaje dodatkowy wiersz/kolumnę (prąd gałęzi).
     int vsCount = 0;
     for (const auto& comp : components_) {
         if (auto* vs = dynamic_cast<VoltageSource*>(comp.get())) {
@@ -37,31 +35,28 @@ bool Circuit::solve() {
         }
     }
 
-    // Rozmiar rozszerzonej macierzy: węzły + prądy źródeł napięcia
     int size = n + vsCount;
 
     Matrix G(size, Vector(size, 0.0));
     Vector rhs(size, 0.0);
 
-    // Każdy komponent wbija swój wkład
     for (const auto& comp : components_) {
         comp->stamp(G, rhs);
     }
 
-    // Rozwiązujemy rozszerzone G * x = rhs
     // x = [ V(n1), V(n2), ..., J(vs1), J(vs2), ... ]
     Vector x = rhs;
     if (!gaussianElimination(G, x)) {
-        std::cerr << "[Circuit] Macierz osobliwa – sprawdź obwód.\n";
+        std::cerr << "[Circuit] Check circuit - singular matrix.\n";
         return false;
     }
 
-    // Przepisujemy napięcia do węzłów
+    // Voltage in nodes
     for (int i = 0; i < n; ++i) {
         nodes_[i + 1]->voltage = x[i];
     }
 
-    // Przepisujemy prądy gałęzi do VoltageSource
+    // Node current through voltage sources
     for (const auto& comp : components_) {
         if (auto* vs = dynamic_cast<VoltageSource*>(comp.get())) {
             vs->setBranchCurrent(x[vs->branchIndex()]);
@@ -76,7 +71,6 @@ bool Circuit::gaussianElimination(Matrix& A, Vector& b) const {
     const double EPS = 1e-12;
 
     for (int col = 0; col < n; ++col) {
-        // Szukamy wiersza z największym elementem w kolumnie (pivoting)
         int pivotRow = col;
         double maxVal = std::abs(A[col][col]);
         for (int row = col + 1; row < n; ++row) {
@@ -86,13 +80,11 @@ bool Circuit::gaussianElimination(Matrix& A, Vector& b) const {
             }
         }
 
-        if (maxVal < EPS) return false; // macierz osobliwa
+        if (maxVal < EPS) return false; // singular matrix
 
-        // Zamiana wierszy
         std::swap(A[col], A[pivotRow]);
         std::swap(b[col], b[pivotRow]);
 
-        // Eliminacja w dół
         for (int row = col + 1; row < n; ++row) {
             double factor = A[row][col] / A[col][col];
             for (int k = col; k < n; ++k) {
@@ -102,7 +94,6 @@ bool Circuit::gaussianElimination(Matrix& A, Vector& b) const {
         }
     }
 
-    // Podstawianie wsteczne
     for (int row = n - 1; row >= 0; --row) {
         for (int k = row + 1; k < n; ++k) {
             b[row] -= A[row][k] * b[k];
@@ -114,7 +105,7 @@ bool Circuit::gaussianElimination(Matrix& A, Vector& b) const {
 }
 
 void Circuit::printNodeVoltages() const {
-    std::cout << "\n=== Napięcia węzłów ===\n";
+    std::cout << "\n=== Nodes voltages ===\n";
     for (const auto& node : nodes_) {
         std::cout << std::setw(8) << node->name
                   << "  →  " << std::fixed << std::setprecision(4)
@@ -123,7 +114,7 @@ void Circuit::printNodeVoltages() const {
 }
 
 void Circuit::printComponents() const {
-    std::cout << "\n=== Komponenty ===\n";
+    std::cout << "\n=== Components ===\n";
     for (const auto& comp : components_) {
         std::cout << std::setw(10) << comp->name
                   << "  I = " << std::fixed << std::setprecision(4)

@@ -1,18 +1,19 @@
 #pragma once
 #include "../Component.hpp"
 
-// Idealne źródło napięcia między nodeA (+) i nodeB (-).
+// Ideal voltage source between nodeA (+) and nodeB (-).
 //
-// Wymaga rozszerzonego MNA: Circuit musi zarezerwować dla każdego
-// VoltageSource dodatkowy wiersz/kolumnę na prąd gałęzi (branchCurrentIndex_).
-// Circuit::solve() wywołuje assignBranchIndex() przed budową macierzy.
+// Requires extended MNA: the Circuit must reserve an additional
+// row/column for each VoltageSource to represent the branch current
+// (branchCurrentIndex_).
+// Circuit::solve() calls assignBranchIndex() before matrix assembly.
 //
-// Rozszerzona macierz (n węzłów + k źródeł napięcia):
+// Extended matrix (n nodes + k voltage sources):
 //
 //   [ G   A ] [ V ]   [ I  ]
 //   [ Aᵀ  0 ] [ J ] = [ Vs ]
 //
-//   A[a][j] =  1,  A[b][j] = -1  (j = indeks prądu tej gałęzi)
+//   A[a][j] =  1,  A[b][j] = -1  (j = the current index of this branch)
 //   Aᵀ[j][a] = 1, Aᵀ[j][b] = -1
 //   rhs[n+j] = voltage_
 
@@ -22,19 +23,14 @@ public:
         : Component(name, nodeA, nodeB), voltage_(voltage), branchIndex_(-1)
     {}
 
-    // Wywoływane przez Circuit::solve() przed stamp() –
-    // przydziela indeks wiersza/kolumny dla prądu tej gałęzi.
-    // idx = (liczba węzłów bez GND) + numer kolejny tego źródła
     void assignBranchIndex(int idx) { branchIndex_ = idx; }
     int  branchIndex() const        { return branchIndex_; }
 
     void stamp(Matrix& G, Vector& rhs) const override {
-        // branchIndex_ musi być ustawiony przed stamp()
         int j = branchIndex_;
 
         auto idx = [](const Node* n) { return n->id - 1; };
 
-        // Kolumna j (wpływ prądu gałęzi na węzły)
         if (!nodeA->isGround()) {
             G[idx(nodeA)][j] += 1.0;
             G[j][idx(nodeA)] += 1.0;
@@ -44,11 +40,10 @@ public:
             G[j][idx(nodeB)] -= 1.0;
         }
 
-        // Równanie: V(a) - V(b) = voltage_
+        // V(a) - V(b) = voltage_
         rhs[j] = voltage_;
     }
 
-    // Prąd gałęzi – przechowywany po solve() przez Circuit
     double getCurrent() const override { return branchCurrent_; }
     void   setBranchCurrent(double i)  { branchCurrent_ = i; }
 
@@ -56,8 +51,8 @@ public:
     void setVoltage(double v) { voltage_ = v; }
 
 private:
-    double voltage_;       // [V]
-    int branchIndex_;   // indeks w rozszerzonej macierzy
-    double branchCurrent_ = 0.0; // [A], wypełniane po solve()
+    double voltage_;             // [V]
+    int branchIndex_;
+    double branchCurrent_ = 0.0; // [A]
     
 };
